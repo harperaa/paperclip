@@ -305,6 +305,7 @@ const hermesLocalAdapter: ServerAdapterModule = {
   detectModel: () => detectModelFromHermes(),
 };
 
+
 const bastionclawAdapter: ServerAdapterModule = {
   type: "bastionclaw_gateway",
   execute: bastionclawExecute,
