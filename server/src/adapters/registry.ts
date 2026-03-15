@@ -121,6 +121,14 @@ import {
   agentConfigurationDoc as piAgentConfigurationDoc,
   modelProfiles as piModelProfiles,
 } from "@paperclipai/adapter-pi-local";
+import {
+  execute as bastionclawExecute,
+  testEnvironment as bastionclawTestEnvironment,
+} from "@paperclipai/adapter-bastionclaw/server";
+import {
+  agentConfigurationDoc as bastionclawAgentConfigurationDoc,
+  models as bastionclawModels,
+} from "@paperclipai/adapter-bastionclaw";
 import { BUILTIN_ADAPTER_TYPES } from "./builtin-adapter-types.js";
 import { buildExternalAdapters } from "./plugin-loader.js";
 import { getDisabledAdapterTypes } from "../services/adapter-plugin-store.js";
@@ -421,6 +429,15 @@ const piLocalAdapter: ServerAdapterModule = {
   agentConfigurationDoc: piAgentConfigurationDoc,
 };
 
+const bastionclawAdapter: ServerAdapterModule = {
+  type: "bastionclaw_gateway",
+  execute: bastionclawExecute,
+  testEnvironment: bastionclawTestEnvironment,
+  models: bastionclawModels,
+  supportsLocalAgentJwt: false,
+  agentConfigurationDoc: bastionclawAgentConfigurationDoc,
+};
+
 const adaptersByType = new Map<string, ServerAdapterModule>();
 
 // For builtin types that are overridden by an external adapter, we keep the
@@ -446,6 +463,7 @@ function registerBuiltInAdapters() {
     hermesGatewayAdapter,
     hermesLocalAdapter,
     openclawGatewayAdapter,
+    bastionclawAdapter,
     processAdapter,
     httpAdapter,
   ]) {
