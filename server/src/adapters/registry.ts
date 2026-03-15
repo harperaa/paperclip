@@ -138,6 +138,14 @@ import {
   agentConfigurationDoc as hermesAgentConfigurationDoc,
   models as hermesModels,
 } from "hermes-paperclip-adapter";
+import {
+  execute as bastionclawExecute,
+  testEnvironment as bastionclawTestEnvironment,
+} from "@paperclipai/adapter-bastionclaw/server";
+import {
+  agentConfigurationDoc as bastionclawAgentConfigurationDoc,
+  models as bastionclawModels,
+} from "@paperclipai/adapter-bastionclaw";
 import { BUILTIN_ADAPTER_TYPES } from "./builtin-adapter-types.js";
 import { buildExternalAdapters } from "./plugin-loader.js";
 import { getDisabledAdapterTypes } from "../services/adapter-plugin-store.js";
@@ -500,6 +508,15 @@ const hermesLocalAdapter: ServerAdapterModule = {
   detectModel: () => detectModelFromHermes(),
 };
 
+const bastionclawAdapter: ServerAdapterModule = {
+  type: "bastionclaw_gateway",
+  execute: bastionclawExecute,
+  testEnvironment: bastionclawTestEnvironment,
+  models: bastionclawModels,
+  supportsLocalAgentJwt: false,
+  agentConfigurationDoc: bastionclawAgentConfigurationDoc,
+};
+
 const adaptersByType = new Map<string, ServerAdapterModule>();
 
 // For builtin types that are overridden by an external adapter, we keep the
@@ -524,6 +541,7 @@ function registerBuiltInAdapters() {
     grokLocalAdapter,
     openclawGatewayAdapter,
     hermesLocalAdapter,
+    bastionclawAdapter,
     processAdapter,
     httpAdapter,
   ]) {
