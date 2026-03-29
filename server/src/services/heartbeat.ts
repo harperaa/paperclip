@@ -7203,6 +7203,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
           heartbeat.dailySpendCentsLimit ??
           heartbeat.dailyBudgetCents,
       ),
+      model: typeof heartbeat.model === "string" && heartbeat.model.trim().length > 0 ? heartbeat.model.trim() : null,
     };
   }
 
@@ -8996,8 +8997,16 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     const runtimeSkillEntries = await companySkills.listRuntimeSkillEntries(agent.companyId, {
       versionSelections: skillVersionSelectionMap(runtimeSkillPreference.desiredSkillEntries),
     });
+    const heartbeatModelOverride = (() => {
+      if (run.invocationSource !== "timer") return null;
+      const rc = parseObject(agent.runtimeConfig);
+      const hb = parseObject(rc.heartbeat);
+      const model = typeof hb.model === "string" && hb.model.trim().length > 0 ? hb.model.trim() : null;
+      return model;
+    })();
     let runtimeConfig = {
       ...effectiveResolvedConfig,
+      ...(heartbeatModelOverride ? { model: heartbeatModelOverride } : {}),
       paperclipRuntimeSkills: runtimeSkillEntries,
     };
     const hostExecutionWorkspaceConfig = stripHostWorkspaceProvisionForLowTrustSandbox({
