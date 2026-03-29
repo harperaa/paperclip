@@ -12421,13 +12421,8 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         versionPinsEnabled: resolvedInstanceSettings.experimental.enableBetaSkills === true,
       }),
     });
-    const heartbeatModelOverride = (() => {
-      if (run.invocationSource !== "timer") return null;
-      const rc = parseObject(agent.runtimeConfig);
-      const hb = parseObject(rc.heartbeat);
-      const model = typeof hb.model === "string" && hb.model.trim().length > 0 ? hb.model.trim() : null;
-      return model;
-    })();
+    const heartbeatModelOverride =
+      run.invocationSource === "timer" ? parseHeartbeatPolicy(agent).model : null;
     let runtimeConfig: Record<string, unknown> = {
       ...effectiveResolvedConfig,
       ...(heartbeatModelOverride ? { model: heartbeatModelOverride } : {}),
