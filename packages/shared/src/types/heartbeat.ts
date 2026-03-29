@@ -237,6 +237,7 @@ export interface InstanceSchedulerHeartbeatAgent {
   adapterType: string;
   intervalSec: number;
   heartbeatEnabled: boolean;
+  heartbeatModel: string | null;
   schedulerActive: boolean;
   lastHeartbeatAt: Date | null;
 }
