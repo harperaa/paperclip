@@ -856,9 +856,11 @@ export function agentRoutes(
 
   function parseSchedulerHeartbeatPolicy(runtimeConfig: unknown) {
     const heartbeat = asRecord(asRecord(runtimeConfig)?.heartbeat) ?? {};
+    const rawModel = heartbeat.model;
     return {
       enabled: parseBooleanLike(heartbeat.enabled) ?? false,
       intervalSec: Math.max(0, parseNumberLike(heartbeat.intervalSec) ?? 0),
+      model: typeof rawModel === "string" && rawModel.trim().length > 0 ? rawModel.trim() : null,
     };
   }
 
@@ -1657,6 +1659,7 @@ export function agentRoutes(
           adapterType: row.adapterType,
           intervalSec: policy.intervalSec,
           heartbeatEnabled: policy.enabled,
+          heartbeatModel: policy.model,
           schedulerActive: statusEligible && policy.enabled && policy.intervalSec > 0,
           lastHeartbeatAt: row.lastHeartbeatAt,
         };
