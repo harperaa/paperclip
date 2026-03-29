@@ -8,6 +8,8 @@ export interface DashboardRunActivityDay {
 
 export interface DashboardSummary {
   companyId: string;
+  companyStatus: string;
+  companyPauseReason: string | null;
   agents: {
     active: number;
     running: number;
