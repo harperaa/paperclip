@@ -10116,9 +10116,10 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     return runs.length;
   }
 
-  async function cancelBudgetScopeWork(scope: BudgetEnforcementScope) {
+  async function cancelBudgetScopeWork(scope: BudgetEnforcementScope, reason?: string) {
+    const cancelReason = reason ?? "Cancelled due to budget pause";
     if (scope.scopeType === "agent") {
-      await cancelActiveForAgentInternal(scope.scopeId, "Cancelled due to budget pause");
+      await cancelActiveForAgentInternal(scope.scopeId, cancelReason);
       await cancelPendingWakeupsForBudgetScope(scope);
       return;
     }
@@ -10138,7 +10139,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         : await listProjectScopedRunIds(scope.companyId, scope.scopeId);
 
     for (const runId of runIds) {
-      await cancelRunInternal(runId, "Cancelled due to budget pause");
+      await cancelRunInternal(runId, cancelReason);
     }
 
     await cancelPendingWakeupsForBudgetScope(scope);
