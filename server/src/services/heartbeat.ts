@@ -7587,13 +7587,8 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       runScopedMentionedSkillKeys,
     );
     const runtimeSkillEntries = await companySkills.listRuntimeSkillEntries(agent.companyId);
-    const heartbeatModelOverride = (() => {
-      if (run.invocationSource !== "timer") return null;
-      const rc = parseObject(agent.runtimeConfig);
-      const hb = parseObject(rc.heartbeat);
-      const model = typeof hb.model === "string" && hb.model.trim().length > 0 ? hb.model.trim() : null;
-      return model;
-    })();
+    const heartbeatModelOverride =
+      run.invocationSource === "timer" ? parseHeartbeatPolicy(agent).model : null;
     let runtimeConfig = {
       ...effectiveResolvedConfig,
       ...(heartbeatModelOverride ? { model: heartbeatModelOverride } : {}),
