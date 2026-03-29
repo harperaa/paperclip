@@ -26,6 +26,7 @@ import {
   companyPortabilityService,
   companyService,
   feedbackService,
+  heartbeatService,
   logActivity,
 } from "../services/index.js";
 import type { StorageService } from "../storage/types.js";
@@ -43,6 +44,7 @@ export function companyRoutes(db: Db, storage?: StorageService) {
   const feedback = feedbackService(db);
   const importJobs = new Map<string, ImportJobRecord>();
   const importJobTerminalRetentionMs = 5 * 60 * 1000;
+  let _heartbeat: ReturnType<typeof heartbeatService> | null = null;
 
   function parseBooleanQuery(value: unknown) {
     return value === true || value === "true" || value === "1";
@@ -66,6 +68,11 @@ export function companyRoutes(db: Db, storage?: StorageService) {
       return;
     }
     assertCompanyAccess(req, target.companyId);
+  }
+
+  function getHeartbeat() {
+    if (!_heartbeat) _heartbeat = heartbeatService(db);
+    return _heartbeat;
   }
 
   async function assertSameCompanyCeoAgentOrBoard(req: Request, companyId: string, capability: string) {
@@ -428,6 +435,52 @@ export function companyRoutes(db: Db, storage?: StorageService) {
       entityType: "company",
       entityId: companyId,
       details: body,
+    });
+    res.json(company);
+  });
+
+  router.post("/:companyId/pause", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const company = await svc.pause(companyId, "manual");
+    if (!company) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+    await getHeartbeat().cancelBudgetScopeWork({
+      companyId,
+      scopeType: "company",
+      scopeId: companyId,
+    });
+    await logActivity(db, {
+      companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "company.paused",
+      entityType: "company",
+      entityId: companyId,
+      details: { reason: "manual" },
+    });
+    res.json(company);
+  });
+
+  router.post("/:companyId/resume", async (req, res) => {
+    assertBoard(req);
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const company = await svc.resume(companyId);
+    if (!company) {
+      res.status(404).json({ error: "Company not found" });
+      return;
+    }
+    await logActivity(db, {
+      companyId,
+      actorType: "user",
+      actorId: req.actor.userId ?? "board",
+      action: "company.resumed",
+      entityType: "company",
+      entityId: companyId,
     });
     res.json(company);
   });

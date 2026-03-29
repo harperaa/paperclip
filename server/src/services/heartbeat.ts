@@ -31,6 +31,7 @@ import {
   agentWakeupRequests,
   activityLog,
   approvals,
+  companies,
   companySkills as companySkillsTable,
   companies,
   costEvents,
