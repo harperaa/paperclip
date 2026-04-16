@@ -46,6 +46,7 @@ import {
   PERMISSION_KEYS
 } from "@paperclipai/shared";
 import type { DeploymentExposure, DeploymentMode, HumanCompanyMembershipRole, PermissionKey } from "@paperclipai/shared";
+import { validateUrlNotInternal } from "../utils/url-validation.js";
 import {
   forbidden,
   conflict,
