@@ -38,6 +38,7 @@ import {
   stringifyPaperclipWakePayload,
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
   joinPromptSections,
+  wrapUntrustedHandoff,
 } from "@paperclipai/adapter-utils/server-utils";
 import {
   parseCodexJsonl,
@@ -691,7 +692,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
       commandNotes.unshift(...preparedRuntimeConfig.notes);
     }
     const renderedPrompt = shouldUseResumeDeltaPrompt ? "" : renderTemplate(promptTemplate, templateData);
-    const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+    const sessionHandoffNote = wrapUntrustedHandoff(asString(context.paperclipSessionHandoffMarkdown, ""));
     const prompt = joinPromptSections([
       promptInstructionsPrefix,
       renderedBootstrapPrompt,
