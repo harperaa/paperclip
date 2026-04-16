@@ -99,7 +99,7 @@ export async function prepareOpenCodeRuntimeConfig(input: {
   config: Record<string, unknown>;
   targetIsRemote?: boolean;
 }): Promise<PreparedOpenCodeRuntimeConfig> {
-  const skipPermissions = asBoolean(input.config.dangerouslySkipPermissions, true);
+  const skipPermissions = asBoolean(input.config.dangerouslySkipPermissions, false);
   if (!skipPermissions) {
     return {
       env: input.env,
