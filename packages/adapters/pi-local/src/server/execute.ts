@@ -45,6 +45,7 @@ import {
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
   runChildProcess,
   filterDangerousEnvKeys,
+  filterDangerousExtraArgs,
 } from "@paperclipai/adapter-utils/server-utils";
 import { shellQuote } from "@paperclipai/adapter-utils/ssh";
 import { isPiUnknownSessionError, parsePiJsonl } from "./parse.js";
@@ -398,9 +399,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     }
 
     const extraArgs = (() => {
-      const fromExtraArgs = asStringArray(config.extraArgs);
+      // Security (fork carry, security/extraargs-allowlist): strip dangerous
+      // extra args before they reach the Pi CLI. Upstream does not filter, so
+      // this is still required.
+      const fromExtraArgs = filterDangerousExtraArgs(asStringArray(config.extraArgs));
       if (fromExtraArgs.length > 0) return fromExtraArgs;
-      return asStringArray(config.args);
+      return filterDangerousExtraArgs(asStringArray(config.args));
     })();
     let restoreRemoteWorkspace: (() => Promise<void>) | null = null;
     let remoteRuntimeRootDir: string | null = null;
