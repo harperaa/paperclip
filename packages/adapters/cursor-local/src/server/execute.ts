@@ -27,6 +27,7 @@ import {
   asString,
   asNumber,
   asStringArray,
+  filterDangerousExtraArgs,
   parseObject,
   buildPaperclipEnv,
   buildInvocationEnvForLogs,
@@ -345,9 +346,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   env = initialSandboxCommand.env;
 
   const extraArgs = (() => {
-    const fromExtraArgs = asStringArray(config.extraArgs);
+    const fromExtraArgs = filterDangerousExtraArgs(asStringArray(config.extraArgs));
     if (fromExtraArgs.length > 0) return fromExtraArgs;
-    return asStringArray(config.args);
+    return filterDangerousExtraArgs(asStringArray(config.args));
   })();
   const autoTrustEnabled = !hasCursorTrustBypassArg(extraArgs);
   let restoreRemoteWorkspace: (() => Promise<void>) | null = null;
