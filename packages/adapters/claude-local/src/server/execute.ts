@@ -44,6 +44,7 @@ import {
   stringifyPaperclipWakePayload,
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
   filterDangerousEnvKeys,
+  filterDangerousExtraArgs,
 } from "@paperclipai/adapter-utils/server-utils";
 import {
   parseClaudeStreamJson,
@@ -322,8 +323,8 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
 
   const extraArgs = (() => {
     const fromExtraArgs = asStringArray(config.extraArgs);
-    if (fromExtraArgs.length > 0) return fromExtraArgs;
-    return asStringArray(config.args);
+    if (fromExtraArgs.length > 0) return filterDangerousExtraArgs(fromExtraArgs);
+    return filterDangerousExtraArgs(asStringArray(config.args));
   })();
 
   return {
