@@ -28,6 +28,7 @@ import {
   ensureAbsoluteDirectory,
   ensurePaperclipSkillSymlink,
   ensurePathInEnv,
+  filterDangerousEnvKeys,
   refreshPaperclipWorkspaceEnvForExecution,
   readPaperclipRuntimeSkillEntries,
   readPaperclipIssueWorkModeFromContext,
@@ -548,9 +549,19 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     if (wakePayloadJson) {
       env.PAPERCLIP_WAKE_PAYLOAD_JSON = wakePayloadJson;
     }
+    // Security (fork carry, backport a88de7084): strip dangerous env keys
+    // (LD_PRELOAD, etc.) from the agent's config.env before they reach the
+    // child process. Upstream's refresh helper rewrites cwd paths but does NOT
+    // denylist, so this filter is still required — it complements, not
+    // overrides, upstream's env handling.
+    const safeEnvConfig = filterDangerousEnvKeys(
+      Object.fromEntries(
+        Object.entries(envConfig).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      ),
+    );
     refreshPaperclipWorkspaceEnvForExecution({
       env,
-      envConfig,
+      envConfig: safeEnvConfig,
       workspaceCwd: effectiveWorkspaceCwd,
       workspaceSource,
       workspaceStrategy,
