@@ -44,6 +44,7 @@ import {
   shapePaperclipWorkspaceEnvForExecution,
   stringifyPaperclipWakePayload,
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+  filterDangerousEnvKeys,
 } from "@paperclipai/adapter-utils/server-utils";
 import { shellQuote } from "@paperclipai/adapter-utils/ssh";
 import {
@@ -252,8 +253,13 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     executionCwd: shapedWorkspaceEnv.workspaceCwd,
     executionTargetIsRemote,
   });
-  for (const [key, value] of Object.entries(shapedEnvConfig)) {
-    if (typeof value === "string") env[key] = value;
+  const safeEnvConfig = filterDangerousEnvKeys(
+    Object.fromEntries(
+      Object.entries(shapedEnvConfig).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    ),
+  );
+  for (const [key, value] of Object.entries(safeEnvConfig)) {
+    env[key] = value;
   }
 
   if (!hasExplicitApiKey && authToken) {
