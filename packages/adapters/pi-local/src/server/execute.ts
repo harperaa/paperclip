@@ -47,6 +47,7 @@ import {
   runChildProcess,
   filterDangerousEnvKeys,
   filterDangerousExtraArgs,
+  wrapUntrustedHandoff,
 } from "@paperclipai/adapter-utils/server-utils";
 import { shellQuote } from "@paperclipai/adapter-utils/ssh";
 import { isPiUnknownSessionError, parsePiJsonl } from "./parse.js";
@@ -618,7 +619,7 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
     const renderedHeartbeatPrompt = shouldUseResumeDeltaPrompt || isPaperclipRecoveryWakePayload(context.paperclipWake)
       ? ""
       : renderTemplate(promptTemplate, templateData);
-    const sessionHandoffNote = asString(context.paperclipSessionHandoffMarkdown, "").trim();
+    const sessionHandoffNote = wrapUntrustedHandoff(asString(context.paperclipSessionHandoffMarkdown, ""));
     const userPrompt = joinPromptSections([
       renderedBootstrapPrompt,
       wakePrompt,
