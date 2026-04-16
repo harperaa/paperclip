@@ -47,6 +47,7 @@ import {
   shapePaperclipWorkspaceEnvForExecution,
   stringifyPaperclipWakePayload,
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+  filterDangerousEnvKeys,
 } from "@paperclipai/adapter-utils/server-utils";
 import {
   parseLocalProcessFilesystemScope,
@@ -287,8 +288,12 @@ async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<Cl
     executionCwd: shapedWorkspaceEnv.workspaceCwd,
     executionTargetIsRemote,
   });
-  for (const [key, value] of Object.entries(shapedEnvConfig)) {
-    if (typeof value !== "string") continue;
+  const safeEnvConfig = filterDangerousEnvKeys(
+    Object.fromEntries(
+      Object.entries(shapedEnvConfig).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    ),
+  );
+  for (const [key, value] of Object.entries(safeEnvConfig)) {
     // Runtime PAPERCLIP_* always wins over config, and PAPERCLIP_API_KEY is
     // never accepted from config — the harness-minted run token is the only
     // source. Other PAPERCLIP_* keys Paperclip did not assign flow through.

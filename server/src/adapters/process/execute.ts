@@ -11,6 +11,7 @@ import {
   ensurePathInEnv,
   resolveCommandForLogs,
   runChildProcess,
+  filterDangerousEnvKeys,
 } from "../utils.js";
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
@@ -24,8 +25,12 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   const env: Record<string, string> = {
     ...buildPaperclipEnv(agent),
   };
-  for (const [k, v] of Object.entries(envConfig)) {
-    if (typeof v !== "string") continue;
+  const safeEnvConfig = filterDangerousEnvKeys(
+    Object.fromEntries(
+      Object.entries(envConfig).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+    ),
+  );
+  for (const [k, v] of Object.entries(safeEnvConfig)) {
     // Runtime PAPERCLIP_* always wins over config, and PAPERCLIP_API_KEY is
     // never accepted from config — the harness-minted run token is the only
     // source. Other PAPERCLIP_* keys Paperclip did not assign flow through.
