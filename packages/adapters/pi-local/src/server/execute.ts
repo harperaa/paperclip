@@ -27,6 +27,7 @@ import {
   asString,
   asNumber,
   asStringArray,
+  filterDangerousExtraArgs,
   parseObject,
   buildPaperclipEnv,
   joinPromptSections,
@@ -389,9 +390,9 @@ export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExec
   }
 
   const extraArgs = (() => {
-    const fromExtraArgs = asStringArray(config.extraArgs);
+    const fromExtraArgs = filterDangerousExtraArgs(asStringArray(config.extraArgs));
     if (fromExtraArgs.length > 0) return fromExtraArgs;
-    return asStringArray(config.args);
+    return filterDangerousExtraArgs(asStringArray(config.args));
   })();
   let restoreRemoteWorkspace: (() => Promise<void>) | null = null;
   let remoteRuntimeRootDir: string | null = null;
