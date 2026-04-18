@@ -53,6 +53,23 @@ export {
   usePluginToast,
 } from "./hooks.js";
 
+// Host-provided shared components. Declared by the SDK, materialized at runtime
+// by the paperclip host so every plugin renders with the same primitives.
+export {
+  ActionBar,
+  ErrorBoundary,
+  JsonTree,
+  LogView,
+  Spinner,
+} from "./components.js";
+export type {
+  ActionBarProps,
+  ErrorBoundaryProps,
+  JsonTreeProps,
+  LogViewProps,
+  SpinnerProps,
+} from "./components.js";
+
 // Bridge error and host context types
 export type {
   PluginBridgeError,
