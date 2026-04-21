@@ -56,3 +56,4 @@ tests/release-smoke/playwright-report/
 .superset/
 .claude/worktrees/
 packages/plugins/harper-cmo/
+companies/harper-agentic-company/
