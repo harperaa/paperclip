@@ -1,4 +1,30 @@
 #!/usr/bin/env -S node --import tsx
+//
+// dev-runner.ts — orchestrator behind `pnpm dev` / `pnpm dev:watch`.
+//
+// Embedded-postgres orphan policy
+// -------------------------------
+// `embedded-postgres` spawns the postgres postmaster as its own process. The
+// postmaster does NOT share a process group with this runner, so if this
+// runner is killed by SIGKILL (or `pkill -9`), the postmaster survives,
+// holds the data directory's `postmaster.pid` lock, and any future dev run
+// either crashes with "lock file postmaster.pid already exists" or silently
+// adopts the orphan on a different port (the cause of the recurring
+// ECONNREFUSED failures we used to see).
+//
+// To prevent that, every shutdown path here MUST:
+//   1. Catch SIGINT/SIGTERM (see `process.on(...)` handlers below).
+//   2. Forward the signal to `child` via `child.kill(signal)` and wait for
+//      it to exit — that lets the server's own SIGINT handler call
+//      `embeddedPostgres.stop()` so the postmaster shuts down cleanly.
+//   3. Never SIGKILL the runner externally. If you need to stop a stuck
+//      runner, send SIGINT/SIGTERM to its PID; killing -9 produces orphans.
+//
+// The server (`server/src/index.ts`) is the second line of defence: on boot
+// it refuses to adopt an orphan postmaster running on a non-configured port
+// and tells the user exactly how to clean it up. Both layers must agree:
+// signals propagate, and adoption is opt-in with a clear failure mode.
+//
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";

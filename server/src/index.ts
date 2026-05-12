@@ -342,22 +342,51 @@ export async function startServer(): Promise<StartedServer> {
       }
     };
   
-    const getRunningPid = (): number | null => {
+    // postmaster.pid line format (postgres convention):
+    //   line 0: postmaster PID
+    //   line 1: data directory
+    //   line 2: start timestamp
+    //   line 3: port
+    //   line 4: socket directory
+    //   ...
+    // When adopting an existing postmaster we MUST use the port written into
+    // that file, not the port the server was configured with. A prior dev run
+    // that lost its requested port to an orphan would have started its
+    // postmaster on a different free port (e.g. 54330 instead of 54329); if we
+    // adopt by PID but keep `port = configuredPort`, every query goes to a
+    // dead port and the server fails with ECONNREFUSED while looking like it
+    // succeeded.
+    const getRunningPidAndPort = (): { pid: number; port: number | null } | null => {
       if (!existsSync(postmasterPidFile)) return null;
       try {
-        const pidLine = readFileSync(postmasterPidFile, "utf8").split("\n")[0]?.trim();
-        const pid = Number(pidLine);
+        const lines = readFileSync(postmasterPidFile, "utf8").split("\n");
+        const pid = Number(lines[0]?.trim());
         if (!Number.isInteger(pid) || pid <= 0) return null;
         if (!isPidRunning(pid)) return null;
-        return pid;
+        const filePort = Number(lines[3]?.trim());
+        return { pid, port: Number.isInteger(filePort) && filePort > 0 ? filePort : null };
       } catch {
         return null;
       }
     };
-  
-    const runningPid = getRunningPid();
-    if (runningPid) {
-      logger.warn(`Embedded PostgreSQL already running; reusing existing process (pid=${runningPid}, port=${port})`);
+
+    const running = getRunningPidAndPort();
+    if (running) {
+      // Refuse to adopt orphan postmasters running on a different port than
+      // configured. Adopting them silently is what caused the "Embedded
+      // PostgreSQL already running; reusing existing process" / ECONNREFUSED
+      // failure: the server reported success but connected to the wrong port.
+      // Tell the user exactly how to clean up so the next boot is fresh.
+      if (running.port !== null && running.port !== configuredPort) {
+        throw new Error(
+          `Embedded PostgreSQL postmaster (pid=${running.pid}) is running on port ${running.port} ` +
+            `but configured port is ${configuredPort}. This is almost certainly an orphan from a ` +
+            `prior dev run that survived its parent's death. Stop it before retrying:\n` +
+            `  kill ${running.pid} && rm -f ${postmasterPidFile}`,
+        );
+      }
+      port = running.port ?? configuredPort;
+      logger.warn(`Embedded PostgreSQL already running; reusing existing process (pid=${running.pid}, port=${port})`);
     } else {
       const configuredAdminConnectionString = `postgres://paperclip:paperclip@127.0.0.1:${configuredPort}/postgres`;
       try {
