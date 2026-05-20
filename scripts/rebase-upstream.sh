@@ -64,6 +64,20 @@
 #       #5850 merges, the rebase will detect the patch as already-applied
 #       (cherry-pick equivalence) and our commit drops out cleanly.
 #
+# Plugin-side carries (separate private repos; same retire-on-merge logic):
+#   - gooseworks-ai/gooseworks-skills#2  quote argument-hint in
+#                                        github-repo-signals SKILL.md so
+#                                        strict YAML parsers (serde_yaml,
+#                                        js-yaml) accept the frontmatter.
+#       Tracking issue: gooseworks-ai/gooseworks-skills#1 (our filing with
+#       multi-parser proof). Without this, every codex agent loading the
+#       lead-gen-devtools pack stderrs a YAML-load failure and silently
+#       drops the github-repo-signals skill.
+#       Local carry: packages/plugins/harper-cmo/.gitmodules redirects the
+#       skills/gooseworks submodule to harperaa/gooseworks-skills (our
+#       fork). When #2 merges, revert harper-cmo commit 877b7e7 to point
+#       back at gooseworks-ai/... and resume tracking upstream.
+#
 set -euo pipefail
 
 FEATURE_BRANCHES=(
