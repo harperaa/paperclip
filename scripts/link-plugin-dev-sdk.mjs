@@ -8,7 +8,7 @@
 // plugin's own package.json so the published tarballs cannot carry a lifecycle
 // script that escapes their package directory at install time.
 
-import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, symlinkSync, unlinkSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -82,7 +82,10 @@ export function linkSdkInto(packageDir) {
         // Already linked to the in-repo SDK; nothing to do.
         return false;
       }
-      rmSync(linkTarget, { force: true });
+      // Use unlinkSync, not rmSync — rmSync follows the symlink to its target
+      // (a directory) and fails on macOS Node with "Path is a directory" because
+      // we don't pass `recursive: true`. unlinkSync removes the link entry itself.
+      unlinkSync(linkTarget);
     } else {
       // A real install has already populated @paperclipai/plugin-sdk (e.g. the
       // plugin host did `npm install` of the published tarball). Leave it.
