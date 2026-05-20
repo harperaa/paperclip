@@ -37,6 +37,15 @@
 # branch in this list is the head of an open upstream PR.
 #
 # Upstream PRs to watch (drop our fork patch once any of these merge):
+#   - paperclipai/paperclip#5898  codex-local: add gpt-5.5 to model catalog +
+#                                 fast-mode allowlist (PLU-461)
+#       Matches fork commit shape: adds "gpt-5.5" to
+#       CODEX_LOCAL_FAST_MODE_SUPPORTED_MODELS and to the `models` array in
+#       packages/adapters/codex-local/src/index.ts, plus updates the existing
+#       codex-args.test.ts expectations. Two more PRs in the same cluster
+#       (#5022, #4646) propose the same change at slightly different shapes;
+#       we matched #5898 because it is the only one currently MERGEABLE. When
+#       any of them lands, this carry drops out via cherry-pick equivalence.
 #   - paperclipai/paperclip#4599  codex_local: always pass --skip-git-repo-check
 #       Matches fork commit shape: 1-line unconditional `args.push("--skip-git-repo-check")`
 #       in packages/adapters/codex-local/src/server/codex-args.ts. When merged,
