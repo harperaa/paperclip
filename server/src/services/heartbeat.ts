@@ -33,7 +33,6 @@ import {
   approvals,
   companies,
   companySkills as companySkillsTable,
-  companies,
   costEvents,
   documentAnnotationComments,
   documentAnnotationThreads,
