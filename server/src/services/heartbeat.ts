@@ -39,7 +39,6 @@ import {
   companySkillTestRuns,
   companySkillVersions,
   companySkills as companySkillsTable,
-  companies,
   costEvents,
   documentAnnotationComments,
   documentAnnotationThreads,
