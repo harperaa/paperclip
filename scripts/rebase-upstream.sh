@@ -101,17 +101,20 @@
 #       route gate; the company boundary moved deeper (assertPluginBridgeScope
 #       on the body companyId + server-derived actorContext + worker-host
 #       invocation scope), so an agent is confined to its own company.
+#       FULLY RESOLVED as of the 2026-06-05 rebase: upstream also relaxed
+#       /api/plugins/tools/execute, replacing assertBoardOrgAccess with
+#       assertBoardOrAgent (agent JWTs allowed; board still needs org access;
+#       deeper assertCompanyAccess(runContext.companyId) + scope validation
+#       retained). This subsumed BOTH fork carries on that route — the
+#       agent-access opener (36f6ec79) and the later board-only revert
+#       (fbd95c58/5cc50e99) — which dropped out via the rebase (we took
+#       upstream's assertBoardOrAgent at the conflict).
 #       Our response: harper-cmo install.ts:authInstructionsForMode was
 #       rewritten (harper-cmo commit 684f8a7) — the authenticated branch now
 #       tells agents to send "Authorization: Bearer \$PAPERCLIP_AGENT_TOKEN"
 #       plus their own companyId instead of declaring the endpoints unusable.
-#       STILL OPEN to watch: /api/plugins/tools/execute remains board-only
-#       (assertBoardOrgAccess — unchanged by #6547; our carry fbd95c58 also
-#       keeps it). If upstream later relaxes tools/execute too, agents will
-#       be able to call it with their JWT and any prompt that routes tool
-#       calls through that endpoint needs the same treatment.
-#       Watch trigger: any further merge touching assertBoardOrgAccess on
-#       /plugins/tools/execute inside server/src/routes/plugins.ts.
+#       Nothing left to watch on the plugin action/tool auth model; this entry
+#       is retained only as a historical record and can be deleted.
 #
 # Plugin-side carries (separate private repos; same retire-on-merge logic):
 #   - gooseworks-ai/gooseworks-skills#2  quote argument-hint in
