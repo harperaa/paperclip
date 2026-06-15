@@ -67,4 +67,6 @@ tests/storybook-visual/playwright-report/
 .claude/worktrees/
 .herenow
 packages/plugins/harper-cmo/
+packages/plugins/harper-ai-value-creator/
 companies/harper-agentic-company/
+.gstack/
