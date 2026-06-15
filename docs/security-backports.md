@@ -35,7 +35,6 @@ new backport. Whitespace inside values is not supported.
 
 <!-- BEGIN security-backports-index -->
 branch=security/env-var-injection            issue=2752 pr=2856
-branch=security/password-log-redaction       issue=3072 pr=3138
 branch=security/mermaid-xss                  issue=2754 pr=2857
 branch=security/rce-command-injection        issue=883  pr=657
 branch=security/http-adapter-ssrf            issue=2554 pr=657
@@ -51,7 +50,6 @@ branch=security/session-handoff-injection    issue=2755 pr=2779
 | Branch | Upstream issue | Upstream PR | Severity | Local impact | Our commit | Added |
 |---|---|---|---|---|---|---|
 | `security/env-var-injection` | [#2752](https://github.com/paperclipai/paperclip/issues/2752) | [#2856](https://github.com/paperclipai/paperclip/pull/2856) | CRITICAL | RCE on host via `LD_PRELOAD`/`NODE_OPTIONS` set through agent `config.env` | _pending_ | _pending_ |
-| `security/password-log-redaction` | [#3072](https://github.com/paperclipai/paperclip/issues/3072) | [#3138](https://github.com/paperclipai/paperclip/pull/3138) | MEDIUM | Plaintext passwords logged on failed sign-in attempts | _pending_ | _pending_ |
 | `security/mermaid-xss` | [#2754](https://github.com/paperclipai/paperclip/issues/2754) | [#2857](https://github.com/paperclipai/paperclip/pull/2857) | MEDIUM | Client-side XSS via Mermaid SVG rendering and `urlTransform` bypass | _pending_ | _pending_ |
 | `security/rce-command-injection` | [#883](https://github.com/paperclipai/paperclip/issues/883) | [#657](https://github.com/paperclipai/paperclip/pull/657) | CRITICAL | RCE via `provisionCommand`/`teardownCommand` passed unescaped to shell | _pending_ | _pending_ |
 | `security/http-adapter-ssrf` | [#2554](https://github.com/paperclipai/paperclip/issues/2554) | [#657](https://github.com/paperclipai/paperclip/pull/657) | HIGH | HTTP adapter fetches arbitrary URLs; agents can hit `169.254.169.254` cloud metadata | _pending_ | _pending_ |
@@ -83,6 +81,7 @@ reviewers know this isn't an oversight.
 | [#2417](https://github.com/paperclipai/paperclip/issues/2417) — XSS via tainted Express response | LOW (local) | Affects 3 routes that don't trigger in local_trusted single-user workflows. Wait for PR #2445. |
 | [#2416](https://github.com/paperclipai/paperclip/issues/2416) — GitHub Actions shell injection | LOW | CI only; doesn't affect runtime. Wait for PR #2445. |
 | [#2415](https://github.com/paperclipai/paperclip/issues/2415) — Dockerfiles run as root | LOW (local) | Not relevant to local single-user installs. Wait for PR #2445. |
+| [#3072](https://github.com/paperclipai/paperclip/issues/3072) — Plaintext passwords logged on failed sign-in | MEDIUM | **Retired** (branch `security/password-log-redaction` deleted). Upstream's `redactSensitive` (server request-body log redaction) subsumes our `sanitizeRecord` patch; the fork commit was skipped on the rebase via cherry-pick equivalence. Issue #3072 closed / PR #3138. |
 
 ## Verification recipes
 
@@ -96,13 +95,6 @@ the branch to master.
 4. Read the heartbeat run log init block — verify `LD_PRELOAD` is **not** in
    the agent's process env
 5. Verify a warning was logged by the server
-
-### `security/password-log-redaction`
-1. Make a POST to `/api/auth/sign-in/email` with an obviously-wrong password
-   (e.g. `{"email":"test@test.com","password":"not-a-real-password-9999"}`)
-2. Tail the server's pino log output
-3. Verify the request body does not contain the plaintext password — it should
-   be `[Redacted]` or similar
 
 ### `security/mermaid-xss`
 1. Create an issue whose body contains a Mermaid diagram with a node label
