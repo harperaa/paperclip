@@ -16,6 +16,7 @@ describe("buildCodexExecArgs", () => {
       "--search",
       "exec",
       "--json",
+      "--skip-git-repo-check",
       "--model",
       "gpt-5.4",
       "-c",
@@ -38,6 +39,7 @@ describe("buildCodexExecArgs", () => {
     expect(result.args).toEqual([
       "exec",
       "--json",
+      "--skip-git-repo-check",
       "--model",
       "gpt-5.5",
       "-c",
@@ -60,6 +62,7 @@ describe("buildCodexExecArgs", () => {
     expect(result.args).toEqual([
       "exec",
       "--json",
+      "--skip-git-repo-check",
       "--model",
       "future-codex-model",
       "-c",
@@ -81,6 +84,7 @@ describe("buildCodexExecArgs", () => {
     expect(result.args).toEqual([
       "exec",
       "--json",
+      "--skip-git-repo-check",
       "-c",
       'service_tier="fast"',
       "-c",
@@ -103,6 +107,7 @@ describe("buildCodexExecArgs", () => {
     expect(result.args).toEqual([
       "exec",
       "--json",
+      "--skip-git-repo-check",
       "--model",
       "gpt-5.3-codex",
       "-",
