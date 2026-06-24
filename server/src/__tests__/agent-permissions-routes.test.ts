@@ -449,7 +449,11 @@ describe.sequential("agent permission routes", () => {
     expect(res.status).toBe(200);
     expect(res.body.adapterConfig).toMatchObject({
       command: "pnpm agent:run",
-      env: { PAPERCLIP_API_KEY: "secret-test-key" },
+      // adapterConfig.env secrets are redacted in all agent API responses (commit
+      // c009fc38c). The board admin still receives the full detail object (command,
+      // runtimeConfig, permissions) rather than the stripped low-trust self-view —
+      // which is what this test guards — but the secret value itself is masked.
+      env: { PAPERCLIP_API_KEY: "***" },
     });
     expect(res.body.runtimeConfig).toMatchObject({
       modelProfiles: {
