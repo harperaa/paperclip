@@ -296,3 +296,102 @@ describe("worker invocation scope propagation", () => {
     }
   });
 });
+
+describe("worker executeTool context", () => {
+  it("establishes company execution context so ctx.secrets.resolve works from a tool handler", async () => {
+    const hostToWorker = new PassThrough();
+    const workerToHost = new PassThrough();
+    const hostReadline = createInterface({ input: workerToHost });
+    const pending = new Map<string, (response: JsonRpcResponse) => void>();
+    let nextRequestId = 1;
+    let resolvedWithCompanyId: string | undefined;
+
+    const plugin = definePlugin({
+      async setup(ctx) {
+        ctx.tools.register(
+          "read-secret",
+          {
+            displayName: "Read Secret",
+            description: "Resolves a secret from a tool handler",
+            parametersSchema: { type: "object", properties: {} },
+          },
+          async (_params, _runCtx) => {
+            const value = await ctx.secrets.resolve("secret-ref");
+            return { content: value };
+          },
+        );
+      },
+    });
+
+    const worker = startWorkerRpcHost({
+      plugin,
+      stdin: hostToWorker,
+      stdout: workerToHost,
+    });
+
+    function callWorker(method: string, params: unknown) {
+      const id = `host-${nextRequestId++}`;
+      const result = new Promise<unknown>((resolve, reject) => {
+        pending.set(id, (response) => {
+          if ("error" in response && response.error) {
+            reject(new Error(response.error.message));
+            return;
+          }
+          resolve((response as { result?: unknown }).result);
+        });
+      });
+      hostToWorker.write(serializeMessage(createRequest(method, params, id)));
+      return result;
+    }
+
+    hostReadline.on("line", (line) => {
+      const message = parseMessage(line);
+      if (isJsonRpcResponse(message)) {
+        pending.get(String(message.id))?.(message);
+        pending.delete(String(message.id));
+        return;
+      }
+      if (!isJsonRpcRequest(message)) return;
+      if (message.method !== "secrets.resolve") return;
+      resolvedWithCompanyId = (message.params as { companyId?: string }).companyId;
+      hostToWorker.write(serializeMessage(createSuccessResponse(message.id, "resolved-secret-value")));
+    });
+
+    try {
+      await callWorker("initialize", {
+        manifest: {
+          id: "paperclip.execute-tool-secret-test",
+          apiVersion: 1,
+          version: "1.0.0",
+          displayName: "ExecuteTool secret test",
+          description: "ExecuteTool secret test",
+          author: "Paperclip",
+          categories: ["automation"],
+          capabilities: [],
+          entrypoints: { worker: "dist/worker.js" },
+        },
+        config: {},
+        instanceInfo: { instanceId: "test", hostVersion: "0.0.0" },
+        apiVersion: 1,
+      });
+
+      await expect(callWorker("executeTool", {
+        toolName: "read-secret",
+        parameters: {},
+        runContext: {
+          agentId: "agent-1",
+          runId: "run-1",
+          companyId: "company-x",
+          projectId: "project-1",
+        },
+      })).resolves.toEqual({ content: "resolved-secret-value" });
+
+      expect(resolvedWithCompanyId).toBe("company-x");
+    } finally {
+      worker.stop();
+      hostReadline.close();
+      hostToWorker.destroy();
+      workerToHost.destroy();
+    }
+  });
+});
