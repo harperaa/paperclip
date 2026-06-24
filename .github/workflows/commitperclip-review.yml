@@ -34,8 +34,26 @@ jobs:
         with:
           node-version: '20'
 
+      # The commitperclip review bot needs the COMMITPERCLIP_KEY secret, which is
+      # only configured on the upstream repo. On forks the secret is absent, so
+      # skip the bot steps instead of hard-failing the job (and the `review`
+      # check). Dependency Review above still runs as the active gate. If the
+      # secret is later added, these steps re-activate automatically.
+      - name: Detect commitperclip configuration
+        id: cpc
+        env:
+          COMMITPERCLIP_KEY: ${{ secrets.COMMITPERCLIP_KEY }}
+        run: |
+          if [ -n "$COMMITPERCLIP_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "COMMITPERCLIP_KEY not configured; skipping commitperclip review steps."
+          fi
+
       - name: Generate commitperclip token
         id: token
+        if: steps.cpc.outputs.configured == 'true'
         run: |
           TOKEN=$(node .github/scripts/get-bot-token.mjs)
           echo "::add-mask::$TOKEN"
@@ -45,7 +63,9 @@ jobs:
 
       - name: Run quality gates
         id: quality
-        if: github.event.pull_request.user.login != 'dependabot[bot]'
+        if: >-
+          steps.cpc.outputs.configured == 'true' &&
+          github.event.pull_request.user.login != 'dependabot[bot]'
         run: node .github/scripts/run-quality-gates.mjs
         continue-on-error: true
         env:
@@ -56,6 +76,7 @@ jobs:
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
 
       - name: Run security gates
+        if: steps.cpc.outputs.configured == 'true'
         run: node .github/scripts/check-pr-security.mjs
         continue-on-error: true
         timeout-minutes: 3
@@ -67,6 +88,7 @@ jobs:
 
       - name: Fail if quality gates failed
         if: >-
+          steps.cpc.outputs.configured == 'true' &&
           github.event.pull_request.user.login != 'dependabot[bot]' &&
           steps.quality.outcome == 'failure'
         run: |
