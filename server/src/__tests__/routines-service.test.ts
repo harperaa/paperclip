@@ -15,6 +15,7 @@ import {
   heartbeatRuns,
   instanceSettings,
   issueInboxArchives,
+  issueComments,
   issueReadStates,
   issues,
   projectWorkspaces,
@@ -61,6 +62,7 @@ describeEmbeddedPostgres("routine service live-execution coalescing", () => {
       process.env.PAPERCLIP_SECRETS_PROVIDER = originalSecretsProviderEnv;
     }
     await db.delete(activityLog);
+    await db.delete(issueComments);
     await db.delete(issueInboxArchives);
     await db.delete(issueReadStates);
     await db.delete(secretAccessEvents);
@@ -274,6 +276,188 @@ describeEmbeddedPostgres("routine service live-execution coalescing", () => {
     expect(routineIssues).toHaveLength(2);
     expect(routineIssues.map((issue) => issue.id)).toContain(previousIssue.id);
     expect(routineIssues.map((issue) => issue.id)).toContain(run.linkedIssueId);
+  });
+
+  it("auto-cancels older YouTube Content Pipeline review issues when the newest run enters review", async () => {
+    const { agentId, companyId, issueSvc, projectId, svc } = await seedFixture();
+    const routine = await svc.create(
+      companyId,
+      {
+        projectId,
+        goalId: null,
+        parentIssueId: null,
+        title: "YouTube Content Pipeline",
+        description: "Run the content pipeline",
+        assigneeAgentId: agentId,
+        priority: "high",
+        status: "active",
+        concurrencyPolicy: "always_enqueue",
+        catchUpPolicy: "skip_missed",
+      },
+      {},
+    );
+    const olderRunId = randomUUID();
+    const currentRunId = randomUUID();
+    const olderIssue = await issueSvc.create(companyId, {
+      projectId,
+      title: routine.title,
+      description: routine.description,
+      status: "in_review",
+      priority: routine.priority,
+      assigneeAgentId: routine.assigneeAgentId,
+      originKind: "routine_execution",
+      originId: routine.id,
+      originRunId: olderRunId,
+    });
+    const currentIssue = await issueSvc.create(companyId, {
+      projectId,
+      title: routine.title,
+      description: routine.description,
+      status: "todo",
+      priority: routine.priority,
+      assigneeAgentId: routine.assigneeAgentId,
+      originKind: "routine_execution",
+      originId: routine.id,
+      originRunId: currentRunId,
+    });
+    await db.insert(routineRuns).values([
+      {
+        id: olderRunId,
+        companyId,
+        routineId: routine.id,
+        triggerId: null,
+        source: "manual",
+        status: "issue_created",
+        triggeredAt: new Date("2026-06-20T12:00:00.000Z"),
+        linkedIssueId: olderIssue.id,
+      },
+      {
+        id: currentRunId,
+        companyId,
+        routineId: routine.id,
+        triggerId: null,
+        source: "manual",
+        status: "issue_created",
+        triggeredAt: new Date("2026-06-20T12:05:00.000Z"),
+        linkedIssueId: currentIssue.id,
+      },
+    ]);
+
+    await issueSvc.update(currentIssue.id, { status: "in_review" });
+    const result = await svc.syncRunStatusForIssue(currentIssue.id);
+
+    const pipelineIssues = await db
+      .select({ id: issues.id, status: issues.status })
+      .from(issues)
+      .where(eq(issues.originId, routine.id));
+    const comments = await db
+      .select({ body: issueComments.body, authorType: issueComments.authorType })
+      .from(issueComments)
+      .where(eq(issueComments.issueId, olderIssue.id));
+
+    expect(result).toBeNull();
+    expect(pipelineIssues).toEqual(expect.arrayContaining([
+      { id: olderIssue.id, status: "cancelled" },
+      { id: currentIssue.id, status: "in_review" },
+    ]));
+    expect(pipelineIssues.filter((issue) => issue.status === "in_review")).toEqual([
+      { id: currentIssue.id, status: "in_review" },
+    ]);
+    expect(comments).toEqual([
+      {
+        authorType: "system",
+        body: "Superseded per HARA-3051 auto-supersede policy — collapsed in favor of latest batch HARA-2871. No visuals generated; scripts remain on-issue. Reversible status change.",
+      },
+    ]);
+    const runs = await db
+      .select({ id: routineRuns.id, status: routineRuns.status, failureReason: routineRuns.failureReason })
+      .from(routineRuns)
+      .where(eq(routineRuns.routineId, routine.id));
+    expect(runs).toEqual(expect.arrayContaining([
+      {
+        id: olderRunId,
+        status: "failed",
+        failureReason: "Superseded by newer YouTube Content Pipeline batch",
+      },
+      { id: currentRunId, status: "issue_created", failureReason: null },
+    ]));
+  });
+
+  it("auto-cancels older YouTube Content Pipeline review issues when the newest run is created in review", async () => {
+    const { agentId, companyId, issueSvc, projectId, svc } = await seedFixture();
+    const routine = await svc.create(
+      companyId,
+      {
+        projectId,
+        goalId: null,
+        parentIssueId: null,
+        title: "YouTube Content Pipeline",
+        description: "Run the content pipeline",
+        assigneeAgentId: agentId,
+        priority: "high",
+        status: "active",
+        concurrencyPolicy: "always_enqueue",
+        catchUpPolicy: "skip_missed",
+      },
+      {},
+    );
+    const olderRunId = randomUUID();
+    const currentRunId = randomUUID();
+    const olderIssue = await issueSvc.create(companyId, {
+      projectId,
+      title: routine.title,
+      description: routine.description,
+      status: "in_review",
+      priority: routine.priority,
+      assigneeAgentId: routine.assigneeAgentId,
+      originKind: "routine_execution",
+      originId: routine.id,
+      originRunId: olderRunId,
+    });
+    const currentIssue = await issueSvc.create(companyId, {
+      projectId,
+      title: routine.title,
+      description: routine.description,
+      status: "in_review",
+      priority: routine.priority,
+      assigneeAgentId: routine.assigneeAgentId,
+      originKind: "routine_execution",
+      originId: routine.id,
+      originRunId: currentRunId,
+    });
+    await db.insert(routineRuns).values([
+      {
+        id: olderRunId,
+        companyId,
+        routineId: routine.id,
+        triggerId: null,
+        source: "manual",
+        status: "issue_created",
+        triggeredAt: new Date("2026-06-20T12:00:00.000Z"),
+        linkedIssueId: olderIssue.id,
+      },
+      {
+        id: currentRunId,
+        companyId,
+        routineId: routine.id,
+        triggerId: null,
+        source: "manual",
+        status: "issue_created",
+        triggeredAt: new Date("2026-06-20T12:05:00.000Z"),
+        linkedIssueId: currentIssue.id,
+      },
+    ]);
+
+    const result = await svc.syncRunStatusForIssue(currentIssue.id);
+
+    const reviewIssues = await db
+      .select({ id: issues.id, status: issues.status })
+      .from(issues)
+      .where(eq(issues.originId, routine.id));
+    expect(result).toBeNull();
+    expect(reviewIssues.filter((issue) => issue.status === "in_review")).toEqual([
+      { id: currentIssue.id, status: "in_review" },
+    ]);
   });
 
   it("creates draft routines without a project or default assignee", async () => {

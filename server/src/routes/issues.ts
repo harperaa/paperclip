@@ -5185,6 +5185,7 @@ export function issueRoutes(
       issueReferencesSvc.emptySummary(),
       referenceSummary,
     );
+    await routinesSvc.syncRunStatusForIssue(issue.id);
 
     await logActivity(db, {
       companyId,
