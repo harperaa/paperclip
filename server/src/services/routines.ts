@@ -71,6 +71,9 @@ import type { PluginWorkerManager } from "./plugin-worker-manager.js";
 const OPEN_ISSUE_STATUSES = ["backlog", "todo", "in_progress", "in_review", "blocked"];
 const LIVE_HEARTBEAT_RUN_STATUSES = ["queued", "running", "scheduled_retry"];
 const TERMINAL_ISSUE_STATUSES = new Set(["done", "cancelled"]);
+const YOUTUBE_CONTENT_PIPELINE_ROUTINE_TITLE = "YouTube Content Pipeline";
+const YOUTUBE_CONTENT_PIPELINE_SUPERSEDE_COMMENT =
+  "Superseded per HARA-3051 auto-supersede policy — collapsed in favor of latest batch HARA-2871. No visuals generated; scripts remain on-issue. Reversible status change.";
 const MAX_CATCH_UP_RUNS = 25;
 const MAX_ROUTINE_REVISIONS = 100;
 const WEEKDAY_INDEX: Record<string, number> = {
@@ -1295,6 +1298,93 @@ export function routineService(
       .where(eq(routineRuns.id, runId))
       .returning()
       .then((rows) => rows[0] ?? null);
+  }
+
+  async function cancelPriorYouTubeContentPipelineReviewIssues(
+    routine: typeof routines.$inferSelect,
+    currentIssueId: string,
+    origin: { kind: string; id: string | null },
+    executor: Db,
+  ) {
+    if (routine.title !== YOUTUBE_CONTENT_PIPELINE_ROUTINE_TITLE) return 0;
+
+    const priorIssues = await executor
+      .select({ id: issues.id, originRunId: issues.originRunId })
+      .from(issues)
+      .where(
+        and(
+          eq(issues.companyId, routine.companyId),
+          eq(issues.originKind, origin.kind),
+          origin.id === null ? isNull(issues.originId) : eq(issues.originId, origin.id),
+          eq(issues.status, "in_review"),
+          ne(issues.id, currentIssueId),
+          isNull(issues.hiddenAt),
+        ),
+      )
+      .orderBy(desc(issues.createdAt), desc(issues.id));
+
+    for (const priorIssue of priorIssues) {
+      await issueSvc.update(priorIssue.id, { status: "cancelled" }, executor);
+      if (priorIssue.originRunId) {
+        await finalizeRun(
+          priorIssue.originRunId,
+          {
+            status: "failed",
+            failureReason: "Superseded by newer YouTube Content Pipeline batch",
+            completedAt: new Date(),
+          },
+          executor,
+        );
+      }
+      await issueSvc.addComment(
+        priorIssue.id,
+        YOUTUBE_CONTENT_PIPELINE_SUPERSEDE_COMMENT,
+        {},
+        { authorType: "system" },
+        executor,
+      );
+    }
+
+    return priorIssues.length;
+  }
+
+  async function enforceYouTubeContentPipelineAutoSupersedeForIssue(issueId: string, executor: Db = db) {
+    const row = await executor
+      .select({
+        issueId: issues.id,
+        issueStatus: issues.status,
+        issueOriginKind: issues.originKind,
+        issueOriginId: issues.originId,
+        routine: routines,
+      })
+      .from(issues)
+      .innerJoin(
+        routines,
+        and(
+          eq(routines.companyId, issues.companyId),
+          sql`${routines.id}::text = ${issues.originId}`,
+        ),
+      )
+      .where(
+        and(
+          eq(issues.id, issueId),
+          eq(issues.originKind, "routine_execution"),
+          eq(issues.status, "in_review"),
+          isNull(issues.hiddenAt),
+        ),
+      )
+      .then((rows) => rows[0] ?? null);
+
+    if (!row || row.routine.title !== YOUTUBE_CONTENT_PIPELINE_ROUTINE_TITLE) return { cancelledCount: 0 };
+
+    const cancelledCount = await cancelPriorYouTubeContentPipelineReviewIssues(
+      row.routine,
+      row.issueId,
+      { kind: row.issueOriginKind, id: row.issueOriginId },
+      executor,
+    );
+
+    return { cancelledCount };
   }
 
   async function createWebhookSecret(
@@ -2848,7 +2938,11 @@ export function routineService(
           completedAt: new Date(),
         });
       }
+      if (issue.status === "in_review") {
+        await enforceYouTubeContentPipelineAutoSupersedeForIssue(issue.id);
+      }
       return null;
     },
+    enforceYouTubeContentPipelineAutoSupersedeForIssue,
   };
 }
