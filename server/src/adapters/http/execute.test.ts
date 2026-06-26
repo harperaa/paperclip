@@ -32,7 +32,10 @@ describe("http adapter execute", () => {
         taskKey: null,
       },
       config: {
-        url: "https://example.test/webhook",
+        // RFC 5737 documentation IP: a literal IP short-circuits the SSRF DNS
+        // guard (validateUrlNotInternal) and is not in any blocked range, so the
+        // test stays hermetic and exercises the timeout path, not DNS resolution.
+        url: "https://203.0.113.10/webhook",
         timeoutMs: 1,
       },
       context: {},

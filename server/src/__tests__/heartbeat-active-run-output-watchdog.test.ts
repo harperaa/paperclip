@@ -120,8 +120,13 @@ describeEmbeddedPostgres("active-run output watchdog", () => {
   });
 
   afterAll(async () => {
+    // Close the pooled client before stopping embedded Postgres: a graceful PG
+    // shutdown waits for open client connections to drain, so a leaked pool can
+    // make instance.stop() exceed the hook timeout under CI load (this is the
+    // heaviest embedded-pg suite). Match the 30s headroom the startup hook uses.
+    await db?.$client?.end?.({ timeout: 0 });
     await tempDb?.cleanup();
-  });
+  }, 30_000);
 
   async function seedRunningRun(opts: {
     now: Date;
