@@ -149,6 +149,10 @@ describe("opencode remote execution", () => {
       config: {
         command: "opencode",
         model: "opencode/gpt-5-nano",
+        // Opt into the runtime permission config so prepareOpenCodeRuntimeConfig
+        // emits notes; staging the xdgConfig asset + second sync is gated on that
+        // (dangerouslySkipPermissions default flipped to false in 3076e11d8).
+        dangerouslySkipPermissions: true,
       },
       context: {
         paperclipWorkspace: {
