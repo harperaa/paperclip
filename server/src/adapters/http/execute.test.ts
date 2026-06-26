@@ -32,7 +32,9 @@ describe("http adapter execute", () => {
         taskKey: null,
       },
       config: {
-        url: "https://example.test/webhook",
+        // Public IP literal (RFC 5737 TEST-NET-3) so the SSRF guard short-circuits
+        // past DNS resolution and we reach the timeout path under test.
+        url: "https://203.0.113.1/webhook",
         timeoutMs: 1,
       },
       context: {},
