@@ -311,6 +311,12 @@ jobs:
 
   canary_dry_run:
     name: Canary Dry Run
+    # Release-publish validation only matters upstream, which owns the npm
+    # publish pipeline. The canary dry run executes `release.sh canary`, which
+    # runs the same release-package-map manifest check that fires on the fork's
+    # intentionally-unpublished fork-local adapter (bastionclaw). Gate to the
+    # upstream repo, consistent with the policy-job publish-validation steps.
+    if: github.repository == 'paperclipai/paperclip'
     needs: [policy]
     runs-on: ubuntu-latest
     timeout-minutes: 20
