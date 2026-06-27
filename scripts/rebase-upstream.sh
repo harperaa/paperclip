@@ -130,6 +130,7 @@ FEATURE_BRANCHES=(
   "feature/post-import-defaults"
   "fix/plugin-route-prefix-v2-dev"
   "chore/update-issue-templates-dev"
+  "fix/hara-3216-executetool-company-context"
 )
 
 SECURITY_INDEX_FILE="docs/security-backports.md"
