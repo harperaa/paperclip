@@ -100,6 +100,10 @@ describe("opencode remote environment diagnostics", () => {
       config: {
         command: "opencode",
         model: "anthropic/claude-sonnet-4-5",
+        // Opt into the runtime permission config so prepareOpenCodeRuntimeConfig
+        // emits notes; staging the xdgConfig asset is gated on that
+        // (dangerouslySkipPermissions default flipped to false in 3076e11d8).
+        dangerouslySkipPermissions: true,
       },
       executionTarget: remoteTarget,
       environmentName: "QA Cloudflare",

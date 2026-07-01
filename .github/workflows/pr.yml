@@ -61,10 +61,17 @@ jobs:
       - name: Test standalone package build concurrency
         run: node --test ./scripts/__tests__/build-standalone-concurrency.test.mjs
 
+      # Release-publish validation only matters upstream, which owns the npm
+      # publish pipeline. Forks (e.g. harperaa/paperclip) carry intentionally
+      # unpublished fork-local adapters (bastionclaw) and never publish to the
+      # @paperclipai scope, so these checks validate a pipeline forks don't run.
+      # Mirrors the commitperclip fork-skip pattern.
       - name: Validate release package manifest
+        if: github.repository == 'paperclipai/paperclip'
         run: node ./scripts/release-package-map.mjs check
 
       - name: Verify release package bootstrap for changed manifests
+        if: github.repository == 'paperclipai/paperclip'
         run: |
           mapfile -t changed_paths < <(git diff --name-only "${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}")
           PAPERCLIP_RELEASE_BOOTSTRAP_BASE_SHA="${{ github.event.pull_request.base.sha }}" \
@@ -129,7 +136,11 @@ jobs:
       - name: Typecheck workspaces whose build scripts skip TypeScript
         run: pnpm run typecheck:build-gaps
 
+      # Upstream-only: these suites validate the npm release/publish pipeline
+      # (manifest edges, bootstrap, calver rewrite) that forks do not run. The
+      # independent no-git-push guard still runs in the policy job above.
       - name: Verify release registry test coverage
+        if: github.repository == 'paperclipai/paperclip'
         run: pnpm run test:release-registry
 
   general_tests:
@@ -300,6 +311,12 @@ jobs:
 
   canary_dry_run:
     name: Canary Dry Run
+    # Release-publish validation only matters upstream, which owns the npm
+    # publish pipeline. The canary dry run executes `release.sh canary`, which
+    # runs the same release-package-map manifest check that fires on the fork's
+    # intentionally-unpublished fork-local adapter (bastionclaw). Gate to the
+    # upstream repo, consistent with the policy-job publish-validation steps.
+    if: github.repository == 'paperclipai/paperclip'
     needs: [policy]
     runs-on: ubuntu-latest
     timeout-minutes: 20
