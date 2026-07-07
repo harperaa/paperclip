@@ -44,7 +44,7 @@ const WORKSPACE_VALIDATION_RECOVERY_CAUSE = "workspace_validation_failed";
 export type ExecutionWorkspaceBranchReconcileMode = "forward" | "override";
 
 export type ExecutionWorkspaceBranchReconcileActor = {
-  actorType: "agent" | "user";
+  actorType: "agent" | "user" | "system";
   actorId: string;
   agentId: string | null;
   runId: string | null;
@@ -299,8 +299,10 @@ function assertBranchReconcileWorkspaceIsSafe(input: {
   workspaceStatus: ExecutionWorkspace["status"];
   inspection: ExecutionWorkspaceBranchReconcileInspection;
   runtimeServices: WorkspaceRuntimeService[];
+  allowActiveWorkspace?: boolean;
 }) {
-  if (input.workspaceStatus !== "idle") {
+  const allowedStatuses = input.allowActiveWorkspace ? ["idle", "active"] : ["idle"];
+  if (!allowedStatuses.includes(input.workspaceStatus)) {
     throw unprocessable("Execution workspace branch reconciliation requires the workspace to be idle", {
       workspaceStatus: input.workspaceStatus,
       inspection: input.inspection,
@@ -1336,6 +1338,7 @@ export function executionWorkspaceService(db: Db) {
         mode: ExecutionWorkspaceBranchReconcileMode;
         reason?: string | null;
         actor: ExecutionWorkspaceBranchReconcileActor;
+        alternateRecoveryFingerprints?: string[] | null;
       },
     ): Promise<ExecutionWorkspaceBranchReconcileResult> => {
       const existingRow = await db
@@ -1360,6 +1363,11 @@ export function executionWorkspaceService(db: Db) {
 
       const reason = readNullableString(input.reason);
       const now = new Date();
+      const allowActiveWorkspace =
+        input.mode === "forward" &&
+        input.actor.actorType === "system" &&
+        input.actor.actorId === "workspace_runtime" &&
+        Boolean(input.actor.runId);
       return db.transaction(async (tx) => {
         const txDb = tx as unknown as Db;
         // Runtime-service activation takes this same row lock before spawning
@@ -1422,6 +1430,7 @@ export function executionWorkspaceService(db: Db) {
           workspaceStatus: lockedWorkspace.status,
           inspection,
           runtimeServices: lockedRuntimeServices,
+          allowActiveWorkspace,
         });
         if (lockedWorkspace.branchName !== inspection.fromBranch) {
           throw unprocessable("Execution workspace branch changed during reconciliation; retry with a fresh inspection", {
@@ -1444,7 +1453,9 @@ export function executionWorkspaceService(db: Db) {
           .where(
             and(
               eq(executionWorkspaces.id, lockedWorkspace.id),
-              eq(executionWorkspaces.status, "idle"),
+              allowActiveWorkspace
+                ? inArray(executionWorkspaces.status, ["idle", "active"])
+                : eq(executionWorkspaces.status, "idle"),
               eq(executionWorkspaces.branchName, inspection.fromBranch),
               noActiveRuntimeServicesForWorkspaceCondition(lockedRow),
             ),
@@ -1461,13 +1472,14 @@ export function executionWorkspaceService(db: Db) {
             workspaceStatus: lockedWorkspace.status,
             inspection,
             runtimeServices: latestRuntimeServices,
+            allowActiveWorkspace,
           });
           throw unprocessable("Execution workspace branch reconciliation requires the workspace to stay idle with stopped runtime services during the update", {
             inspection,
           });
         }
 
-        const recoveryAction = await recoveryActionsSvc.resolveActiveForIssue(
+        let recoveryAction = await recoveryActionsSvc.resolveActiveForIssue(
           {
             companyId: lockedWorkspace.companyId,
             sourceIssueId: lockedWorkspace.sourceIssueId,
@@ -1480,6 +1492,25 @@ export function executionWorkspaceService(db: Db) {
           },
           tx,
         );
+        if (!recoveryAction) {
+          for (const alternateFingerprint of input.alternateRecoveryFingerprints ?? []) {
+            if (!alternateFingerprint || alternateFingerprint === inspection.fingerprint) continue;
+            recoveryAction = await recoveryActionsSvc.resolveActiveForIssue(
+              {
+                companyId: existing.companyId,
+                sourceIssueId: existing.sourceIssueId!,
+                kind: "workspace_validation",
+                cause: WORKSPACE_VALIDATION_RECOVERY_CAUSE,
+                fingerprint: alternateFingerprint,
+                status: "resolved",
+                outcome: "restored",
+                resolutionNote: `Execution workspace branch record reconciled from "${inspection.fromBranch}" to "${inspection.toBranch}".`,
+              },
+              tx,
+            );
+            if (recoveryAction) break;
+          }
+        }
 
         const [auditComment] = await tx
           .insert(issueComments)

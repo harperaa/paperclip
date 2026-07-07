@@ -105,6 +105,7 @@ import {
   inspectManagedGitWorktreeBranch,
   persistAdapterManagedRuntimeServices,
   realizeExecutionWorkspace,
+  reconcilePendingForwardBranchAfterPersistence,
   releaseRuntimeServicesForRun,
   type ExecutionWorkspaceInput,
   type RealizedExecutionWorkspace,
@@ -10779,6 +10780,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         workspaceConfigFreshness,
         restoreExistingWorkspace: reusableExistingExecutionWorkspace
           ? () => ensurePersistedExecutionWorkspaceAvailable({
+              db,
               base: executionWorkspaceBase,
               workspace: {
                 id: reusableExistingExecutionWorkspace.id,
@@ -10806,10 +10808,14 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
                 name: agent.name,
                 companyId: agent.companyId,
               },
+              heartbeatRunId: run.id,
+              enableWorkspaceBranchReconcileForward:
+                resolvedInstanceSettings.experimental.enableWorkspaceBranchReconcileForward,
               recorder: workspaceOperationRecorder,
             })
           : null,
         realizeWorkspace: () => realizeExecutionWorkspace({
+          db,
           base: executionWorkspaceBase,
           config: hostExecutionWorkspaceConfig,
           issue: issueRef,
@@ -10818,6 +10824,9 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
             name: agent.name,
             companyId: agent.companyId,
           },
+          heartbeatRunId: run.id,
+          enableWorkspaceBranchReconcileForward:
+            resolvedInstanceSettings.experimental.enableWorkspaceBranchReconcileForward,
           recorder: workspaceOperationRecorder,
         }),
       });
@@ -10839,13 +10848,16 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       baseRef: executionWorkspace.repoRef,
       baseRefSha: executionWorkspace.baseRefSha ?? null,
     });
+    const pendingForwardBranchReconcile = executionWorkspace.pendingForwardBranchReconcile ?? null;
+    const branchNameForInitialPersistence =
+      pendingForwardBranchReconcile?.recordedBranchName ?? executionWorkspace.branchName;
     try {
       persistedExecutionWorkspace = resolvedWorkspaceReusePolicy.shouldRestoreExistingWorkspace && reusableExistingExecutionWorkspace
         ? await executionWorkspacesSvc.update(reusableExistingExecutionWorkspace.id, {
             cwd: executionWorkspace.cwd,
             repoUrl: executionWorkspace.repoUrl,
             baseRef: executionWorkspace.repoRef,
-            branchName: executionWorkspace.branchName,
+            branchName: branchNameForInitialPersistence,
             providerType: executionWorkspace.strategy === "git_worktree" ? "git_worktree" : "local_fs",
             providerRef: executionWorkspace.worktreePath,
             status: "active",
@@ -10867,12 +10879,12 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
                       ? "adapter_managed"
                       : "shared_workspace",
               strategyType: executionWorkspace.strategy === "git_worktree" ? "git_worktree" : "project_primary",
-              name: executionWorkspace.branchName ?? issueRef?.identifier ?? `workspace-${agent.id.slice(0, 8)}`,
+              name: branchNameForInitialPersistence ?? issueRef?.identifier ?? `workspace-${agent.id.slice(0, 8)}`,
               status: "active",
               cwd: executionWorkspace.cwd,
               repoUrl: executionWorkspace.repoUrl,
               baseRef: executionWorkspace.repoRef,
-              branchName: executionWorkspace.branchName,
+              branchName: branchNameForInitialPersistence,
               providerType: executionWorkspace.strategy === "git_worktree" ? "git_worktree" : "local_fs",
               providerRef: executionWorkspace.worktreePath,
               lastUsedAt: new Date(),
@@ -10924,6 +10936,18 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         }
       }
       throw error;
+    }
+    if (persistedExecutionWorkspace && pendingForwardBranchReconcile) {
+      await workspaceOperationRecorder.attachExecutionWorkspaceId(persistedExecutionWorkspace.id);
+      const reconcileResult = await reconcilePendingForwardBranchAfterPersistence({
+        db,
+        executionWorkspaceId: persistedExecutionWorkspace.id,
+        pending: pendingForwardBranchReconcile,
+        heartbeatRunId: run.id,
+        reconcileOperationPhase: "worktree_prepare",
+        recorder: workspaceOperationRecorder,
+      });
+      persistedExecutionWorkspace = reconcileResult.workspace;
     }
     await workspaceOperationRecorder.attachExecutionWorkspaceId(persistedExecutionWorkspace?.id ?? null);
     await recordWorkspaceConfigFreshnessOperation({
@@ -11568,8 +11592,10 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
             let inspection = branchInspection.inspection;
             const initialManagedGitWorktreeBranch = formatManagedGitWorktreeBranchInspection(inspection);
             if (!inspection.valid && inspection.reasonCode === "branch_mismatch" && inspection.repoRoot) {
+              let reconciledBranchName: string | null = null;
               try {
-                await ensureGitWorktreeBranchCoherent({
+                const coherence = await ensureGitWorktreeBranchCoherent({
+                  db,
                   repoRoot: inspection.repoRoot,
                   worktreePath: inspection.worktreePath,
                   expectedBranchName: inspection.expectedBranchName,
@@ -11580,11 +11606,18 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
                         identifier: issueRef.identifier,
                         title: issueRef.title,
                         workMode: issueRef.workMode,
-                      }
+                    }
                     : null,
                   executionWorkspaceId: branchInspection.workspaceRecord.id,
+                  heartbeatRunId: run.id,
+                  enableWorkspaceBranchReconcileForward:
+                    resolvedInstanceSettings.experimental.enableWorkspaceBranchReconcileForward,
+                  reconcileOperationPhase: "workspace_finalize",
                   recorder: workspaceOperationRecorder,
                 });
+                if (coherence.reconciledForward && coherence.branchName) {
+                  reconciledBranchName = coherence.branchName;
+                }
               } catch (repairErr) {
                 const workspaceValidationFailure = isWorkspaceValidationFailure(repairErr) ? repairErr : null;
                 finalizeBranchMetadata = {
@@ -11621,7 +11654,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
 
               const repairedInspection = await inspectManagedGitWorktreeBranch({
                 worktreePath: inspection.worktreePath,
-                expectedBranchName: inspection.expectedBranchName,
+                expectedBranchName: reconciledBranchName ?? inspection.expectedBranchName,
                 repoRoot: inspection.repoRoot,
               });
               finalizeBranchRepairMetadata = {
