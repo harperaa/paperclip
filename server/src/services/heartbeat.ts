@@ -36,6 +36,7 @@ import {
   activityLog,
   approvals,
   companyMemberships,
+  companies,
   companySkillTestRuns,
   companySkillVersions,
   companySkills as companySkillsTable,
