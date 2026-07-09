@@ -412,13 +412,16 @@ if [[ -n "$(git status --porcelain)" ]]; then
 fi
 
 # 1. Fetch upstream
+# Fetch in EVERY mode — including --dry-run. `git fetch` only updates the
+# read-only upstream/* remote-tracking refs; it does not touch local branches or
+# the working tree, so it is safe in a preview. Skipping it made --dry-run compute
+# the "behind upstream" count against a STALE ref and report 0 behind when master
+# was actually 131 behind (masking a large rebase + an upstream release).
 info "Fetching upstream..."
-if $DRY_RUN; then
-  info "(dry-run) Would fetch upstream"
-elif $CHECK_ONLY; then
-  git fetch upstream 2>/dev/null || warn "  fetch failed, continuing with cached refs"
-else
+if ! $DRY_RUN && ! $CHECK_ONLY; then
   git fetch upstream
+else
+  git fetch upstream 2>/dev/null || warn "  fetch failed, preview counts may be stale"
 fi
 
 # 2. Security-backport upstream status check
