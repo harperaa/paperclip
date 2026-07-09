@@ -487,8 +487,15 @@ for branch in "${ALL_BRANCHES[@]}"; do
   if ! git rev-parse --verify "$branch" &>/dev/null; then
     continue
   fi
-  AHEAD=$(git rev-list --count "master..$branch" 2>/dev/null || echo "0")
-  if [[ "$AHEAD" -eq 0 ]]; then
+  # Count commits on the branch NOT already in master BY PATCH-ID. `git cherry`
+  # marks each commit '+' (unique) or '-' (an equivalent patch is already in
+  # master). This is robust to master having been rebased: a plain
+  # `git rev-list --count master..branch` compares by SHA, so after a rebase the
+  # branch's old commits look "unique" (their new-SHA equivalents are in master
+  # but the old SHAs are not ancestors) — which wrongly sends a fully-merged
+  # branch down the rebase path and re-conflicts on already-applied commits.
+  UNIQUE=$(git cherry master "$branch" 2>/dev/null | grep -c '^+' || true)
+  if [[ "${UNIQUE:-0}" -eq 0 ]]; then
     ANCHOR_BRANCHES+=("$branch")
   fi
 done
