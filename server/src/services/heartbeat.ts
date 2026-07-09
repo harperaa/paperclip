@@ -33,6 +33,7 @@ import {
   activityLog,
   approvals,
   companyMemberships,
+  companies,
   companySkills as companySkillsTable,
   costEvents,
   documentAnnotationComments,
