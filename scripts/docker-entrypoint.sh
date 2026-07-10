@@ -35,6 +35,15 @@ if [ "$(id -g node)" -ne "$PGID" ]; then
     changed=1
 fi
 
+# A freshly-mounted volume (Railway, k8s PVC, a fresh named/bind volume) comes
+# up root-owned, and the app runs unprivileged as node via gosu below. The
+# remap-gated chown -R above only fires when node's UID/GID actually change, so
+# it misses the common "no remap, fresh root-owned volume" case (Railway at the
+# default 1000:1000) — leaving node unable to write to its own data dir. Always
+# ensure the mount root itself is node-owned: cheap (one inode) on first boot,
+# a no-op once it already belongs to node, and node creates everything beneath.
+chown node:node /paperclip 2>/dev/null || true
+
 if [ "$changed" = "1" ]; then
     chown -R node:node /paperclip
 fi
