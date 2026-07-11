@@ -61,11 +61,19 @@ export function CloudAccessGate() {
   const claimMutation = useMutation({
     mutationFn: () => accessApi.claimBootstrapAdmin(),
     onSuccess: async () => {
+      // Refresh every cache the app routes on BEFORE the health refetch: the
+      // moment health reports bootstrap no longer pending, this gate re-renders
+      // and mounts the app, which immediately routes on the companies cache. If
+      // that cache is still the stale pre-claim result (empty/unauthorized —
+      // fetched while the user sat on the claim page), the brand-new admin is
+      // bounced to /onboarding's create-company wizard even though their
+      // companies exist and the refetch lands milliseconds later. Invalidate
+      // health LAST so the gate only opens onto fresh data.
       await queryClient.invalidateQueries({ queryKey: queryKeys.auth.session });
-      await queryClient.invalidateQueries({ queryKey: queryKeys.health });
       await queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
       await queryClient.invalidateQueries({ queryKey: queryKeys.companies.stats });
       await queryClient.invalidateQueries({ queryKey: queryKeys.access.currentBoardAccess });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.health });
     },
   });
 
