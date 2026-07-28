@@ -75,7 +75,10 @@ describe("docker-entrypoint.sh", () => {
     expect(stdout).toContain("ENTRYPOINT-CMD-RAN");
     expect(calls).toContain("gosu node echo ENTRYPOINT-CMD-RAN");
     expect(calls).not.toContain("usermod");
-    expect(calls).not.toContain("chown");
+    // The fork chowns the /paperclip mount root unconditionally on root start
+    // (Railway mounts the volume root-owned), but must not recurse into it.
+    expect(calls).toContain("chown node:node /paperclip");
+    expect(calls).not.toContain("chown -R");
   });
 
   it("remaps the node user and chowns /paperclip before gosu when root requests a different UID/GID", async () => {
