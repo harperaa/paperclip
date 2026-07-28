@@ -54,58 +54,22 @@
 #       discovered the upstream queue already had 7 PRs for this. When
 #       #5850 merges, the rebase will detect the patch as already-applied
 #       (cherry-pick equivalence) and our commit drops out cleanly.
-#   - paperclipai/paperclip#6592  enable plugin secrets.read-ref with
-#                                 company-scoped resolution (the unlock for
-#                                 PLUGIN_SECRET_REFS_DISABLED gate from #5429)
-#       Tracking issue: paperclipai/paperclip#6057. Stack predecessors
-#       (#6148 plugin-config-by-company, #6173 worker-RPC plumbing) are
-#       NOT required — #6592 derives companyId from the existing RPC
-#       ActorContext and works on upstream master directly.
-#       Carried as 4 cherry-picked commits (the 4 linear feature commits
-#       from the PR — merge commit 82b7a6dd and post-merge cleanup
-#       8fe5c531 are PR-branch-internal artifacts not needed on our master):
-#         05008772 → 0d9588ed  feat(server): enable plugin secrets.read-ref
-#         90acacc7 → 0a2b2b91  test(server): align plugin config authz
-#         d0deb4b2 → 7dcf9cdf  fix(server): clarify disabled message
-#         dab4a752 → ad45dae4  fix(server,sdk): enforce company scope
-#       Files: server/src/services/plugin-secrets-handler.ts,
-#       server/src/routes/plugins.ts, packages/plugins/sdk/src/protocol.ts,
-#       packages/plugins/sdk/src/worker-rpc-host.ts (plus tests).
-#       Why this matters: PR #5429 (merged upstream 2026-05-09 as 778e775c)
-#       added an unconditional fail-closed throw in createPluginSecretsHandler;
-#       our 2026-05-12 rebase pulled it in, silently breaking every
-#       transcript-fetch in downstream plugins from that date forward.
-#       Opt-out env: PAPERCLIP_PLUGIN_SECRET_REFS_DISABLED=true restores
-#       fail-closed behavior. When #6592 lands upstream, the rebase will
-#       detect our four cherry-picks as previously-applied and drop them
-#       out cleanly.
-#   - paperclipai/paperclip#1177  Clarification: agent keys vs board session
-#                                 (downstream comment 4548879122 proposed
-#                                 relaxing assertBoardOrgAccess →
-#                                 assertCompanyAccess on plugin action +
-#                                 tools-execute endpoints)
-#       PARTIALLY RESOLVED upstream by #6547 (merged 2026-05-22, "Harden
-#       plugin runtime invocation scope"). #6547 relaxed the two ACTION
-#       routes — /api/plugins/:id/actions/:key and /api/plugins/:id/bridge/
-#       action — from assertBoardOrgAccess to assertAuthenticated (NOT
-#       assertCompanyAccess as the comment guessed). Agent JWTs now pass the
-#       route gate; the company boundary moved deeper (assertPluginBridgeScope
-#       on the body companyId + server-derived actorContext + worker-host
-#       invocation scope), so an agent is confined to its own company.
-#       FULLY RESOLVED as of the 2026-06-05 rebase: upstream also relaxed
-#       /api/plugins/tools/execute, replacing assertBoardOrgAccess with
-#       assertBoardOrAgent (agent JWTs allowed; board still needs org access;
-#       deeper assertCompanyAccess(runContext.companyId) + scope validation
-#       retained). This subsumed BOTH fork carries on that route — the
-#       agent-access opener (36f6ec79) and the later board-only revert
-#       (fbd95c58/5cc50e99) — which dropped out via the rebase (we took
-#       upstream's assertBoardOrAgent at the conflict).
-#       Our response: harper-cmo install.ts:authInstructionsForMode was
-#       rewritten (harper-cmo commit 684f8a7) — the authenticated branch now
-#       tells agents to send "Authorization: Bearer \$PAPERCLIP_AGENT_TOKEN"
-#       plus their own companyId instead of declaring the endpoints unusable.
-#       Nothing left to watch on the plugin action/tool auth model; this entry
-#       is retained only as a historical record and can be deleted.
+#   - paperclipai/paperclip#6592  enable plugin secrets.read-ref — RESOLVED
+#       (2026-07-28 rebase): upstream/master now ships its own company-scoped
+#       plugin secret resolution (companySecretBindings + invocation-scope
+#       companyId derivation; PR #6592 itself is still open but superseded by
+#       the native implementation). Our four cherry-picked carries were
+#       dropped during the rebase. The PAPERCLIP_PLUGIN_SECRET_REFS_DISABLED
+#       opt-out env no longer exists — upstream's binding+capability gating
+#       replaces it.
+#   - fix/hara-3216-executetool-company-context — RETIRED (2026-07-28 rebase):
+#       upstream's worker-manager now derives the executeTool invocation scope
+#       from runContext.companyId (deriveInvocationScope), so tool handlers
+#       get company-scoped host RPCs (ctx.secrets.resolve) natively. Carry
+#       reverted and branch removed from FEATURE_BRANCHES.
+#   - paperclipai/paperclip#1177  agent keys vs board session — FULLY RESOLVED
+#       upstream (#6547 + assertBoardOrAgent on /api/plugins/tools/execute);
+#       harper-cmo install.ts was updated accordingly (commit 684f8a7).
 #
 # Plugin-side carries (separate private repos; same retire-on-merge logic):
 #   - gooseworks-ai/gooseworks-skills#2  quote argument-hint in
@@ -130,7 +94,6 @@ FEATURE_BRANCHES=(
   "feature/post-import-defaults"
   "fix/plugin-route-prefix-v2-dev"
   "chore/update-issue-templates-dev"
-  "fix/hara-3216-executetool-company-context"
 )
 
 SECURITY_INDEX_FILE="docs/security-backports.md"

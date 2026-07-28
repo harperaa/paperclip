@@ -1782,13 +1782,7 @@ export function startWorkerRpcHost(options: WorkerRpcHostOptions): WorkerRpcHost
     if (!entry) {
       throw new Error(`No tool handler registered for "${params.toolName}"`);
     }
-    // Establish the company execution context so host RPCs that require it
-    // (e.g. ctx.secrets.resolve) work from any tool handler — mirrors
-    // handleGetData / handlePerformAction. The companyId lives on runContext.
-    return runWithPluginCompanyContext(
-      extractCompanyIdFromHandlerParams(params.runContext),
-      () => entry.fn(params.parameters, params.runContext),
-    );
+    return entry.fn(params.parameters, params.runContext);
   }
 
   async function handleDetectExternalObjects(params: DetectExternalObjectsParams) {
